@@ -1,1 +1,1 @@
-# CS3600-Lab
+# CS3600-Lab: IT Asset Inventory App
