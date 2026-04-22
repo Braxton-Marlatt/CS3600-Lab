@@ -13,6 +13,8 @@ dist
 dist-ssr
 *.local
 
+#db information
+app.db
 
 # Environmet variables
 .env
