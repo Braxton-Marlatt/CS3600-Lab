@@ -25,7 +25,7 @@ export default function Departments() {
   const [showSuccess, setShowSuccess] = useState(false)
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_BACKEND_URL}/api/get-departments`, {
+    fetch(`${import.meta.env.VITE_BACKEND_URL}/api/departments`, {
       method: 'GET'
     }).then(res => res.json()).then(res => setDepts(res.data.map((d: any) => ({
       ...d,
@@ -48,7 +48,7 @@ export default function Departments() {
       budget: Number(formData.get('budget')),
     }])
 
-    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/add-department`, {
+    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/departments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
