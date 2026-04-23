@@ -5,6 +5,7 @@ import AddAsset from "./pages/addAsset.tsx";
 import Employees from "./pages/employees.tsx";
 import Departments from "./pages/departments.tsx";
 import Navbar from "./components/navbar.tsx";
+import NotFoundPage from "./pages/not-found.tsx";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="/add-asset" element={<AddAsset />} />
         <Route path="/employees" element={<Employees />} />
         <Route path="/departments" element={<Departments />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </div>
   )
