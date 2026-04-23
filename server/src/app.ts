@@ -50,9 +50,9 @@ const departmentQuery = db.prepare(`SELECT
 const employeeId = db.prepare(`SELECT id FROM employee WHERE name = ?`)
 const addDepartment = db.prepare(`INSERT INTO department (name, manager, location, budget) VALUES (?, ?, ?, ?)`)
 const add_DE_Relation = db.prepare(`INSERT INTO employee_department (employee_id, department) VALUES (?, ?)`)
-const addDepartmentTransaction = db.transaction((managerId: number, name: string, location: string, budget: string) => {
+const addDepartmentTransaction = db.transaction((managerId: number | null, name: string, location: string, budget: string) => {
   addDepartment.run(name, managerId, location, budget);
-  add_DE_Relation.run(managerId, name)
+  if (managerId !== null) add_DE_Relation.run(managerId, name);
 })
 
 // API routes
@@ -73,7 +73,12 @@ app.get("/api/get-departments", async (_req: Request, res: Response) => {
 app.post("/api/add-department", async (_req: Request, res: Response) => {
   const {name, manager, location, budget} = _req.body;
   try {
-    const {id: managerId} = (employeeId.get(manager) as { id: number }) ?? null;
+    const id = employeeId.get(manager) as { id: number } | undefined;
+    if (manager && !id) {
+      res.status(400).json({ error: `Employee '${manager}' not found` });
+      return;
+    }
+    const managerId = id?.id ?? null;
     const result = addDepartmentTransaction(managerId, name, location, budget)
     res.status(200).json({data: result});
   } catch (error){
