@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path"
 
-const db = new Database(path.join(__dirname, "../../data/app.db"));
+const db = new Database(path.join(__dirname, "../data/app.db"));
 
 // Create the db schema on server start
 db.exec(`PRAGMA foreign_keys = ON;`) // enforces valid foreign key (they have to map to real record)
