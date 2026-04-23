@@ -2,8 +2,9 @@ import express, { Application, Request, Response, NextFunction } from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import path from "path";
+import fs from "fs";
 import db from "./db";
-
 
 // --- Configuration
 const app: Application = express()
@@ -82,6 +83,14 @@ app.post("/api/add-department", async (_req: Request, res: Response) => {
 
 })
 
+// Serve React app in production
+const publicDir = path.join(__dirname, "../../public");
+if (fs.existsSync(publicDir)) {
+  app.use(express.static(publicDir));
+  app.get(/^(?!\/api).*/, (_req: Request, res: Response) => {
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
+}
 
 // Catch all and error routes (has to be at the end)
 app.use((_req: Request, res: Response) => {
