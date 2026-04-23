@@ -15,6 +15,10 @@ A full-stack web application for tracking and managing IT assets across departme
 The app lets users view and manage IT assets, departments, and employees through a dashboard interface. The frontend communicates with a REST API backed by a SQLite database.
 
 ## Getting Started
+First create a `/data` folder in the project root (for database)
+```bash
+mkdir data
+```
 
 To build the project:
 
