@@ -6,7 +6,7 @@ A full-stack web application for tracking and managing IT assets across departme
 
 ```
 .
-├── app/      # React frontend (TypeScript + Vite + Tailwind CSS)
+├── frontend/      # React frontend (TypeScript + Vite + Tailwind CSS)
 └── server/   # Node.js backend (Express + TypeScript + SQLite)
 ```
 
@@ -16,12 +16,11 @@ The app lets users view and manage IT assets, departments, and employees through
 
 ## Getting Started
 
-Each part of the project has its own setup guide:
+To build the project:
 
-- [Frontend (app)](./app/README.md) — React + Vite dev server on port 5173
-- [Backend (server)](./server/README.md) — Express API server on port 8080
-
-Start the server first, then the frontend.
+```bash
+docker compose up
+```
 
 ## Tech Stack
 
