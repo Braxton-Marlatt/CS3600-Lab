@@ -23,7 +23,8 @@ app.use(morgan("dev"));
 app.use(express.json());
 
 // Prepared database queries
-const departmentQuery = db.prepare(`SELECT D.name                                                               AS name,
+const departmentQuery = db.prepare(`SELECT 
+                                            D.name                                                               AS name,
                                            E.name                                                               AS manager,
                                            D.location                                                           AS location,
                                            (SELECT COUNT(*) FROM employee_department WHERE department = D.name) AS employees,
@@ -86,10 +87,33 @@ const addEmployeeTransaction = db.transaction((name: string, email: string, jobT
   return res.lastInsertRowid;
 })
 
+const getAssets = db.prepare(`SELECT 
+        A.id AS id,
+        A.name AS name,
+        A.category AS category,
+        A.location AS location,
+        A.status AS status,
+        A.purchased_date AS purchaseDate,
+        A.assigned_to_department AS assignedDepartment,
+        E.name AS assignedEmployee
+    FROM asset AS A LEFT JOIN employee AS E ON E.id = A.assigned_to_employee
+`)
+
 // API routes
 app.get("/api/health", (_req: Request, res: Response) => {
   res.status(200).json({status: "ok"});
 });
+
+
+app.get("/api/assets", (_req: Request, res: Response) => {
+  try {
+    const results = getAssets.all()
+    res.status(200).json({data: results})
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({error: error instanceof Error ? error.message : "Internal server error"});
+  }
+})
 
 app.get("/api/departments", async (_req: Request, res: Response) => {
   try {

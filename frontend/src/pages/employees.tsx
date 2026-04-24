@@ -1,4 +1,5 @@
 import {useEffect, useState} from 'react'
+import {IconDelete, IconEye} from "../components/icons.tsx";
 
 type Employee = {
   id: string
@@ -213,13 +214,13 @@ export default function Employees() {
                         onClick={() => setSelected(emp)}
                         className="text-xs border border-blue-400 text-blue-600 px-2 py-1 rounded hover:bg-blue-50"
                       >
-                        View
+                        <IconEye/>
                       </button>
                       <button
                         onClick={() => remove(emp.id)}
                         className="text-xs border border-red-400 text-red-600 px-2 py-1 rounded hover:bg-red-50"
                       >
-                        Delete
+                        <IconDelete/>
                       </button>
                     </td>
                   </tr>
