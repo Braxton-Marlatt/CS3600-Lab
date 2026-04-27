@@ -105,9 +105,10 @@ export default function Employees() {
     setTimeout(() => setShowSuccess(false), 3000)
   }
 
-  const remove = (id: string) => {
-    if (confirm('Are you sure you want to delete this employee?'))
-      setEmployees(prev => prev.filter(e => e.id !== id))
+  const remove = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this employee?')) return
+    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/employees/${id}`, {method: 'DELETE'})
+    if (res.ok) setEmployees(prev => prev.filter(e => e.id !== id))
   }
 
   return (

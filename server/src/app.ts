@@ -111,6 +111,28 @@ const updateAssetStmt = db.prepare(`UPDATE asset SET
 
 const deleteAssetStmt = db.prepare(`DELETE FROM asset WHERE id=?`)
 
+const removeEmployeeRelations = db.prepare(`DELETE FROM employee_department WHERE employee_id=?`)
+const unassignEmployeeAssets = db.prepare(`UPDATE asset SET assigned_to_employee=NULL WHERE assigned_to_employee=?`)
+const clearEmployeeManagerRoles = db.prepare(`UPDATE department SET manager=NULL WHERE manager=?`)
+const deleteEmployeeStmt = db.prepare(`DELETE FROM employee WHERE id=?`)
+const deleteEmployeeTransaction = db.transaction((id: number) => {
+  removeEmployeeRelations.run(id)
+  unassignEmployeeAssets.run(id)
+  clearEmployeeManagerRoles.run(id)
+  deleteEmployeeStmt.run(id)
+})
+
+const setDeptManager = db.prepare(`UPDATE department SET manager=? WHERE name=?`)
+
+const removeDeptEmployeeRelations = db.prepare(`DELETE FROM employee_department WHERE department=?`)
+const unassignDeptAssets = db.prepare(`UPDATE asset SET assigned_to_department=NULL WHERE assigned_to_department=?`)
+const deleteDeptStmt = db.prepare(`DELETE FROM department WHERE name=?`)
+const deleteDeptTransaction = db.transaction((name: string) => {
+  removeDeptEmployeeRelations.run(name)
+  unassignDeptAssets.run(name)
+  deleteDeptStmt.run(name)
+})
+
 const dashboardStats = db.prepare(`SELECT
     COUNT(*)                                                        AS totalAssets,
     SUM(CASE WHEN status = 'not-started' THEN 1 ELSE 0 END)        AS active,
@@ -250,6 +272,34 @@ app.post("/api/departments", async (_req: Request, res: Response) => {
   }
 })
 
+app.put("/api/departments/:name/manager", (_req: Request, res: Response) => {
+  const name = _req.params.name as string
+  const {manager} = _req.body
+  try {
+    const emp = employeeId.get(manager) as {id: number} | undefined
+    if (manager && !emp) {
+      res.status(400).json({error: `Employee '${manager}' not found`})
+      return
+    }
+    setDeptManager.run(emp?.id ?? null, name)
+    res.status(200).json({data: {name}})
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({error: error instanceof Error ? error.message : "Internal server error"})
+  }
+})
+
+app.delete("/api/departments/:name", (_req: Request, res: Response) => {
+  const name = _req.params.name as string
+  try {
+    deleteDeptTransaction(name)
+    res.status(200).json({data: {name}})
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({error: error instanceof Error ? error.message : "Internal server error"})
+  }
+})
+
 app.get("/api/get-department-names", async (_req: Request, res: Response) => {
   try {
     const results = departmentNames.all()
@@ -273,6 +323,17 @@ app.post("/api/assign-department", async (_req: Request, res: Response) => {
     res.status(500).json({error: error instanceof Error ? error.message : "Internal server error"});
   }
 
+})
+
+app.delete("/api/employees/:id", (_req: Request, res: Response) => {
+  const id = Number(_req.params.id)
+  try {
+    deleteEmployeeTransaction(id)
+    res.status(200).json({data: {id}})
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({error: error instanceof Error ? error.message : "Internal server error"})
+  }
 })
 
 app.get("/api/employees", async (_req: Request, res: Response) => {

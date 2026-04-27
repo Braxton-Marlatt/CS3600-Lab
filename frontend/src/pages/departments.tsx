@@ -25,6 +25,9 @@ export default function Departments() {
   const [selected, setSelected] = useState<Department | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
   const [addError, setAddError] = useState('')
+  const [managerName, setManagerName] = useState('')
+  const [managerSuccess, setManagerSuccess] = useState(false)
+  const [managerError, setManagerError] = useState('')
 
   useEffect(() => {
     fetch(`${import.meta.env.VITE_BACKEND_URL}/api/departments`, {
@@ -73,9 +76,31 @@ export default function Departments() {
     }
   }
 
-  const remove = (name: string) => {
-    if (confirm('Are you sure you want to delete this department? All employees will need to be reassigned.'))
-      setDepts(prev => prev.filter(d => d.name !== name))
+  const handleSetManager = async (e: any) => {
+    e.preventDefault()
+    if (!selected) return
+    setManagerError('')
+    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/departments/${encodeURIComponent(selected.name)}/manager`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({manager: managerName}),
+    })
+    const json = await res.json()
+    if (res.ok) {
+      setDepts(prev => prev.map(d => d.name === selected.name ? {...d, manager: managerName || '-'} : d))
+      setSelected(prev => prev ? {...prev, manager: managerName || '-'} : null)
+      setManagerSuccess(true)
+      setManagerError('')
+      setTimeout(() => setManagerSuccess(false), 3000)
+    } else {
+      setManagerError(json.error || 'Failed to update manager')
+    }
+  }
+
+  const remove = async (name: string) => {
+    if (!confirm('Are you sure you want to delete this department? All employees will need to be reassigned.')) return
+    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/departments/${encodeURIComponent(name)}`, {method: 'DELETE'})
+    if (res.ok) setDepts(prev => prev.filter(d => d.name !== name))
   }
 
   const totalEmployees = depts.reduce((s, d) => s + d.employees, 0)
@@ -171,7 +196,7 @@ export default function Departments() {
                     <td className="px-4 py-3">{dept.budget}</td>
                     <td className="px-4 py-3 flex gap-1">
                       <button
-                        onClick={() => setSelected(dept)}
+                        onClick={() => { setSelected(dept); setManagerName(''); setManagerSuccess(false); setManagerError('') }}
                         className="text-xs border border-blue-400 text-blue-600 px-2 py-1 rounded hover:bg-blue-50"
                       >
                         <IconEye/>
@@ -248,6 +273,35 @@ export default function Departments() {
                   </li>
                 ))}
               </ul>
+              <hr className="my-4 border-gray-200"/>
+              <h6 className="font-semibold text-gray-700 mb-2">Set Manager</h6>
+              <form onSubmit={handleSetManager} className="flex gap-2">
+                <select
+                  value={managerName}
+                  onChange={e => setManagerName(e.target.value)}
+                  className="flex-1 border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— None —</option>
+                  {selected.employeeList.map(emp => (
+                    <option key={emp.name} value={emp.name}>{emp.name} ({emp.title})</option>
+                  ))}
+                </select>
+                <button type="submit"
+                        className="bg-blue-600 text-white text-sm px-4 py-2 rounded hover:bg-blue-700 whitespace-nowrap">
+                  Save
+                </button>
+              </form>
+              {managerSuccess && (
+                <p className="mt-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-1.5">
+                  Manager updated successfully!
+                </p>
+              )}
+              {managerError && (
+                <p className="mt-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-1.5">
+                  {managerError}
+                </p>
+              )}
+              <hr className="my-4 border-gray-200"/>
               <h6 className="font-semibold text-gray-700 mb-2">Department Assets (Top 5)</h6>
               {selected.assetList.length > 0 ? (
 
