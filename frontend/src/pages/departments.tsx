@@ -24,6 +24,7 @@ export default function Departments() {
   const [depts, setDepts] = useState<Department[]>([])
   const [selected, setSelected] = useState<Department | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [addError, setAddError] = useState('')
 
   useEffect(() => {
     fetch(`${import.meta.env.VITE_BACKEND_URL}/api/departments`, {
@@ -37,35 +38,39 @@ export default function Departments() {
 
   const handleAdd = async (e: any) => {
     e.preventDefault()
+    setAddError('')
     const formData = new FormData(e.target)
-    setDepts(prev => [...prev, {
+    const body = {
       name: formData.get('name') as string,
-      manager: (formData.get('manager') as string) || '-',
-      location: (formData.get('location') as string) || '-',
-      employees: 0,
-      totalAssets: 0,
-      employeeList: [],
-      assetList: [],
+      manager: formData.get('manager') as string,
+      location: formData.get('location') as string,
       budget: Number(formData.get('budget')),
-    }])
+    }
 
     const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/departments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: formData.get('name') as string,
-        manager: formData.get('manager') as string,
-        location: formData.get('location') as string,
-        budget: Number(formData.get('budget')),
-      }),
+      body: JSON.stringify(body),
     });
 
+    const json = await response.json()
     if (response.ok) {
+      setDepts(prev => [...prev, {
+        name: body.name,
+        manager: body.manager || '-',
+        location: body.location || '-',
+        employees: 0,
+        totalAssets: 0,
+        employeeList: [],
+        assetList: [],
+        budget: body.budget,
+      }])
       e.target.reset()
       setShowSuccess(true)
+      setTimeout(() => setShowSuccess(false), 3000)
+    } else {
+      setAddError(json.error || 'Failed to add department')
     }
-
-    setTimeout(() => setShowSuccess(false), 3000)
   }
 
   const remove = (name: string) => {
@@ -130,6 +135,11 @@ export default function Departments() {
             {showSuccess && (
               <div className="mt-3 bg-green-50 border border-green-300 text-green-800 text-sm px-3 py-2 rounded">
                 Department added successfully!
+              </div>
+            )}
+            {addError && (
+              <div className="mt-3 bg-red-50 border border-red-300 text-red-800 text-sm px-3 py-2 rounded">
+                {addError}
               </div>
             )}
           </div>

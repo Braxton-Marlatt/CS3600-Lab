@@ -23,31 +23,22 @@ app.use(morgan("dev"));
 app.use(express.json());
 
 // Prepared database queries
-const departmentQuery = db.prepare(`SELECT 
-                                            D.name                                                               AS name,
-                                           E.name                                                               AS manager,
-                                           D.location                                                           AS location,
-                                           (SELECT COUNT(*) FROM employee_department WHERE department = D.name) AS employees,
-                                           (SELECT COUNT(*) FROM asset WHERE assigned_to_department = D.name)   AS totalAssets,
-                                           D.budget                                                             AS budget,
-
-                                           -- EMPLOYEE LIST
-                                           (SELECT json_group_array(json_object(
-                                                   'name', EE.name, 'title', EE.job_title
-                                                                    ))
-                                            FROM employee_department AS ED2
-                                                     INNER JOIN employee AS EE ON ED2.employee_id = EE.id
-                                            WHERE ED2.department = D.name)                                      AS employeeList,
-                                           -- ASSET LIST
-                                           (SELECT json_group_array(json_object(
-                                                   'name', name, 'id', id
-                                                                    ))
-                                            FROM asset
-                                            WHERE assigned_to_department = D.name)                              AS assetList
-
-                                    FROM employee_department AS ED
-                                             INNER JOIN employee AS E ON ED.employee_id = E.id
-                                             INNER JOIN department AS D ON ED.department = D.name
+const departmentQuery = db.prepare(`SELECT
+    D.name                                                               AS name,
+    E.name                                                               AS manager,
+    D.location                                                           AS location,
+    (SELECT COUNT(*) FROM employee_department WHERE department = D.name) AS employees,
+    (SELECT COUNT(*) FROM asset WHERE assigned_to_department = D.name)   AS totalAssets,
+    D.budget                                                             AS budget,
+    (SELECT json_group_array(json_object('name', EE.name, 'title', EE.job_title))
+     FROM employee_department AS ED2
+     INNER JOIN employee AS EE ON ED2.employee_id = EE.id
+     WHERE ED2.department = D.name)                                      AS employeeList,
+    (SELECT json_group_array(json_object('name', name, 'id', id))
+     FROM asset
+     WHERE assigned_to_department = D.name)                              AS assetList
+FROM department AS D
+LEFT JOIN employee AS E ON D.manager = E.id
 `);
 
 const employeeId = db.prepare(`SELECT id
@@ -87,23 +78,86 @@ const addEmployeeTransaction = db.transaction((name: string, email: string, jobT
   return res.lastInsertRowid;
 })
 
-const getAssets = db.prepare(`SELECT 
-        A.id AS id,
-        A.name AS name,
-        A.category AS category,
-        A.location AS location,
-        A.status AS status,
-        A.purchased_date AS purchaseDate,
-        A.assigned_to_department AS assignedDepartment,
-        E.name AS assignedEmployee
-    FROM asset AS A LEFT JOIN employee AS E ON E.id = A.assigned_to_employee
+const getAssets = db.prepare(`SELECT
+    A.id                       AS id,
+    A.name                     AS name,
+    A.serial_number            AS serialNumber,
+    A.category                 AS category,
+    A.location                 AS location,
+    A.status                   AS status,
+    A.purchased_date           AS purchaseDate,
+    A.price                    AS price,
+    A.warranty_expiration      AS warrantyExpiration,
+    A.manufacturer             AS manufacturer,
+    A.model                    AS model,
+    A.notes                    AS notes,
+    A.assigned_to_department   AS assignedDepartment,
+    A.assigned_to_employee     AS assignedEmployeeId,
+    E.name                     AS assignedEmployee
+FROM asset AS A LEFT JOIN employee AS E ON E.id = A.assigned_to_employee
 `)
+
+const getMaxAssetId = db.prepare(`SELECT MAX(CAST(SUBSTR(id, 3) AS INTEGER)) AS maxId FROM asset`)
+
+const addAssetStmt = db.prepare(`INSERT INTO asset
+    (id, name, serial_number, category, location, status, purchased_date, price, warranty_expiration, manufacturer, model, notes, assigned_to_employee, assigned_to_department)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+
+const updateAssetStmt = db.prepare(`UPDATE asset SET
+    name=?, serial_number=?, category=?, location=?, status=?, purchased_date=?,
+    price=?, warranty_expiration=?, manufacturer=?, model=?, notes=?,
+    assigned_to_employee=?, assigned_to_department=?
+    WHERE id=?`)
+
+const deleteAssetStmt = db.prepare(`DELETE FROM asset WHERE id=?`)
+
+const dashboardStats = db.prepare(`SELECT
+    COUNT(*)                                                        AS totalAssets,
+    SUM(CASE WHEN status = 'not-started' THEN 1 ELSE 0 END)        AS active,
+    SUM(CASE WHEN status = 'in-repair'   THEN 1 ELSE 0 END)        AS inRepair,
+    SUM(CASE WHEN status = 'finished'    THEN 1 ELSE 0 END)        AS retired
+FROM asset`)
+
+const dashboardDeptAssets = db.prepare(`SELECT D.name AS dept,
+    (SELECT COUNT(*) FROM asset WHERE assigned_to_department = D.name) +
+    (SELECT COUNT(*) FROM asset AS A
+        INNER JOIN employee_department AS ED ON A.assigned_to_employee = ED.employee_id
+        WHERE ED.department = D.name) AS count
+FROM department AS D
+ORDER BY count DESC
+LIMIT 5`)
+
+const dashboardRecentAssets = db.prepare(`SELECT id, name, category, status, purchased_date AS date
+FROM asset
+ORDER BY purchased_date DESC
+LIMIT 5`)
+
+const dashboardRecentAssignments = db.prepare(`SELECT E.name,
+    D.name AS dept,
+    (SELECT COUNT(*) FROM asset WHERE assigned_to_employee = E.id) AS assets
+FROM employee AS E
+LEFT JOIN employee_department AS ED ON E.id = ED.employee_id
+LEFT JOIN department AS D ON ED.department = D.name
+ORDER BY assets DESC
+LIMIT 5`)
 
 // API routes
 app.get("/api/health", (_req: Request, res: Response) => {
   res.status(200).json({status: "ok"});
 });
 
+app.get("/api/dashboard", (_req: Request, res: Response) => {
+  try {
+    const stats = dashboardStats.get()
+    const deptAssets = dashboardDeptAssets.all()
+    const recentAssets = dashboardRecentAssets.all()
+    const recentAssignments = dashboardRecentAssignments.all()
+    res.status(200).json({data: {stats, deptAssets, recentAssets, recentAssignments}})
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({error: error instanceof Error ? error.message : "Internal server error"})
+  }
+})
 
 app.get("/api/assets", (_req: Request, res: Response) => {
   try {
@@ -112,6 +166,60 @@ app.get("/api/assets", (_req: Request, res: Response) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({error: error instanceof Error ? error.message : "Internal server error"});
+  }
+})
+
+app.post("/api/assets", (_req: Request, res: Response) => {
+  const {name, serialNumber, category, location, status, purchaseDate, price, warrantyExpiration, manufacturer, model, notes, assignedEmployeeId, assignedDepartment} = _req.body
+  try {
+    const {maxId} = getMaxAssetId.get() as {maxId: number | null}
+    const nextId = `A-${((maxId ?? 999) + 1).toString().padStart(4, '0')}`
+    addAssetStmt.run(
+      nextId, name, serialNumber ?? '', category, location, status,
+      purchaseDate || new Date().toISOString().split('T')[0],
+      price ?? 0, warrantyExpiration ?? '', manufacturer ?? '', model ?? '', notes ?? '',
+      assignedEmployeeId || null, assignedDepartment || null
+    )
+    res.status(200).json({data: {id: nextId}})
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({error: error instanceof Error ? error.message : "Internal server error"})
+  }
+})
+
+app.put("/api/assets/:id", (_req: Request, res: Response) => {
+  const {id} = _req.params
+  const {name, serialNumber, category, location, status, purchaseDate, price, warrantyExpiration, manufacturer, model, notes, assignedEmployeeId, assignedDepartment} = _req.body
+  try {
+    const result = updateAssetStmt.run(
+      name, serialNumber ?? '', category, location, status,
+      purchaseDate, price ?? 0, warrantyExpiration ?? '', manufacturer ?? '', model ?? '', notes ?? '',
+      assignedEmployeeId || null, assignedDepartment || null,
+      id
+    ) as {changes: number}
+    if (result.changes === 0) {
+      res.status(404).json({error: 'Asset not found'})
+      return
+    }
+    res.status(200).json({data: {id}})
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({error: error instanceof Error ? error.message : "Internal server error"})
+  }
+})
+
+app.delete("/api/assets/:id", (_req: Request, res: Response) => {
+  const {id} = _req.params
+  try {
+    const result = deleteAssetStmt.run(id) as {changes: number}
+    if (result.changes === 0) {
+      res.status(404).json({error: 'Asset not found'})
+      return
+    }
+    res.status(200).json({data: {id}})
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({error: error instanceof Error ? error.message : "Internal server error"})
   }
 })
 
